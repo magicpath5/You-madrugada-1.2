@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>youmadrugada</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .upload-section, .gallery-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .gallery-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+        
+        .gallery-item-thumbnail {
+            width: 100%;
+            height: 150px;
+            background: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+        }
+        
+        .gallery-item-name {
+            padding: 10px;
+            font-size: 12px;
+            word-break: break-word;
+        }
+        
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        input[type="file"], button {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        #status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        #player-container {
+            margin-top: 20px;
+            background: black;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        #player-container video,
+        #player-container audio {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bem-vindo ao You Madrugada</h1>
+    <img src="https://tse1.mm.bing.net/th/id/OIP.0Iof9-cgCjGEmmMtVCrSzwHaFj?rs=1&pid=ImgDetMain&o=7&rm=3" alt="seu madrugada">
+
+<h1>Enviar e Reproduzir Arquivo</h1>
+
+<div class="container">
+    <!-- Seção de Upload -->
+    <div class="upload-section">
+        <h2>Enviar Arquivo</h2>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" accept="video/*,audio/*" />
+            <button type="submit">Enviar</button>
+        </form>
+        <div id="status" style="margin-top: 10px; padding: 10px; display: none; border-radius: 4px;"></div>
+        <div id="player-container"></div>
+    </div>
+    
+    <!-- Seção de Galeria -->
+    <div class="gallery-section">
+        <h2>Arquivos Salvos</h2>
+        <div id="gallery" class="gallery"></div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const statusDiv = document.getElementById('status');
+    const galleryDiv = document.getElementById('gallery');
+    
+    // Carregar galeria ao iniciar
+    carregarGaleria();
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Por favor, selecione um arquivo.');
+            return;
+        }
+
+        // Enviar arquivo para o servidor
+        const formData = new FormData();
+        formData.append('file', file);
+
+        statusDiv.style.display = 'block';
+        statusDiv.textContent = 'Enviando arquivo...';
+        statusDiv.style.color = 'blue';
+
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                statusDiv.textContent = '✓ Arquivo salvo com sucesso!';
+                statusDiv.style.color = 'green';
+                fileInput.value = '';
+                reproduzirArquivo(file);
+                // Recarregar galeria
+                setTimeout(carregarGaleria, 500);
+            } else {
+                statusDiv.textContent = '✗ Erro ao salvar arquivo';
+                statusDiv.style.color = 'red';
+            }
+        } catch (error) {
+            statusDiv.textContent = '✗ Erro: ' + error.message;
+            statusDiv.style.color = 'red';
+        }
+    });
+
+    async function carregarGaleria() {
+        try {
+            const response = await fetch('/list');
+            const files = await response.json();
+            
+            galleryDiv.innerHTML = '';
+            
+            if (files.length === 0) {
+                galleryDiv.innerHTML = '<p>Nenhum arquivo ainda</p>';
+                return;
+            }
+            
+            files.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'gallery-item';
+                item.style.cursor = 'pointer';
+                
+                // Ícone baseado no tipo de arquivo
+                let icon = '';
+                if (['mp4', 'webm', 'ogg', 'avi', 'mkv'].includes(file.type)) {
+                    icon = '🎬';
+                } else if (['mp3', 'wav', 'aac', 'flac'].includes(file.type)) {
+                    icon = '🎵';
+                } else {
+                    icon = '📄';
+                }
+                
+                item.innerHTML = `
+                    <div class="gallery-item-thumbnail">${icon}</div>
+                    <div class="gallery-item-name">${file.name}</div>
+                `;
+                
+                item.addEventListener('click', () => reproduzirDoServidor(file));
+                galleryDiv.appendChild(item);
+            });
+        } catch (error) {
+            console.error('Erro ao carregar galeria:', error);
+            galleryDiv.innerHTML = '<p>Erro ao carregar arquivos</p>';
+        }
+    }
+    
+    function reproduzirArquivo(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const url = URL.createObjectURL(file);
+        const container = document.getElementById('player-container');
+        container.innerHTML = '';
+
+        if (['mp4', 'webm', 'ogg'].includes(ext)) {
+            const video = document.createElement('video');
+            video.src = url;
+            video.controls = true;
+            video.width = 640;
+            container.appendChild(video);
+        } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.controls = true;
+            container.appendChild(audio);
+        } else {
+            container.innerText = 'Tipo de arquivo não suportado.';
+        }
+    }
+    
+    function reproduzirDoServidor(file) {
+        const ext = file.type.toLowerCase();
+        const url = '/' + file.path;
+        const container = document.getElementById('player-container');
+        container.innerHTML = '';
+
+        if (['mp4', 'webm', 'ogg', 'avi', 'mkv'].includes(ext)) {
+            const video = document.createElement('video');
+            video.src = url;
+            video.controls = true;
+            video.width = 640;
+            container.appendChild(video);
+        } else if (['mp3', 'wav', 'ogg', 'aac', 'flac'].includes(ext)) {
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.controls = true;
+            container.appendChild(audio);
+        } else {
+            container.innerText = 'Tipo de arquivo não suportado.';
+        }
+    }
+</script>
+</body>
+</html>
