@@ -6,6 +6,7 @@ from email.parser import BytesParser
 from email import policy
 import os
 import json
+import socket
 from pathlib import Path
 
 # Pasta onde os arquivos serão salvos
@@ -112,10 +113,25 @@ class UploadHandler(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     PORT = 1100
     Handler = UploadHandler
-    httpd = HTTPServer(('localhost', PORT), Handler)
-
-    print(f"Servidor rodando em http://localhost:{PORT}")
-    print(f"Arquivos serão salvos em: {UPLOAD_DIR}")
+    
+    # Tentar IPv6 primeiro (suporta IPv4-mapped)
+    try:
+        HTTPServer.address_family = socket.AF_INET6
+        httpd = HTTPServer((':2804:7f3:7201:11e9:425f:f082:fa3c:79a3:', PORT), Handler)
+        print(f"✓ Servidor rodando em IPv6 (e IPv4-mapped)")
+        print(f"  Acesse em: http://[::1]:{PORT} (localhost IPv6)")
+    except OSError:
+        # Fallback para IPv4 puro
+        HTTPServer.address_family = socket.AF_INET
+        httpd = HTTPServer(('localhost', PORT), Handler)
+        print(f"✓ Servidor rodando em IPv4")
+        print(f"  Acesse em: http://localhost:{PORT}")
+        
+    print(f"\nArquivos serão salvos em: {UPLOAD_DIR}")
+    print("Acesse de qualquer máquina na rede usando:")
+    print("  - localhost:1100")
+    print("  - [::]:1100")
+    print("  - Seu IP local ou IPv6")
     print("Pressione Ctrl+C para parar o servidor")
     
     try:
